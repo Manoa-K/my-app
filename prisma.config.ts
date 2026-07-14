@@ -1,10 +1,12 @@
+// 1 行目にこれを追加するのじゃ！
+import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
   datasource: {
-    // 開発時は .env から、本番は環境変数から DATABASE_URL を読み込むぞ
-    url: process.env.DATABASE_URL
+    // もし .env が読み込めなくても、仙人が怒らないようにダミーを入れるぞ
+    url: process.env.DATABASE_URL || "postgresql://dummy@localhost:5432/dummy"
   },
 });
 
