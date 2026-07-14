@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "./generated/prisma/client";
+import { PrismaClient } from "./generated/prisma/client.js";
 
 console.log("接続先URL:", process.env.DATABASE_URL?.substring(0, 20) + "...");
 
