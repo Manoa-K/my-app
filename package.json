@@ -4,7 +4,10 @@
   "type": "module",
   "scripts": {
     "start": "tsx index.ts",
-    "db:dev": "prisma dev"
+    "db:dev": "prisma dev",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "prisma db seed",
+    "generate": "prisma generate"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",

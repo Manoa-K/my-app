@@ -1,18 +1,363 @@
 <!DOCTYPE html>
 <html lang="ja">
-<head><meta charset="UTF-8"><title>ユーザー一覧</title></head>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>傾斜割り勘・清算アプリ</title>
+  <style>
+    :root {
+      --bg1: #eef2ff; --bg2: #f8fafc;
+      --card: #ffffff; --text: #1e293b; --muted: #64748b;
+      --line: #e2e8f0; --accent: #4f46e5; --accent-d: #4338ca;
+      --green: #059669; --danger: #ef4444; --chip: #eef2ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", Meiryo, sans-serif;
+      margin: 0; color: var(--text);
+      background: linear-gradient(160deg, var(--bg1), var(--bg2));
+      min-height: 100vh; padding: 2rem 1rem;
+    }
+    .wrap { max-width: 800px; margin: 0 auto; }
+    header h1 { font-size: 1.6rem; margin: 0 0 .25rem; letter-spacing: .02em; }
+    header p { margin: 0 0 1.25rem; color: var(--muted); font-size: .92rem; }
+    .card {
+      background: var(--card); border-radius: 18px; padding: 1.25rem 1.25rem 1.5rem;
+      box-shadow: 0 10px 30px rgba(30,41,59,.08); border: 1px solid var(--line);
+      margin-bottom: 1.1rem;
+    }
+    .toolbar { display: flex; align-items: center; gap: .75rem; margin-bottom: .75rem; flex-wrap: wrap; }
+    .toolbar .spacer { flex: 1; }
+    .toolbar strong { font-size: 1rem; }
+    label.none {
+      display: inline-flex; align-items: center; gap: .4rem; font-size: .9rem;
+      color: var(--muted); cursor: pointer;
+    }
+    /* 役職比率の設定 */
+    .roles-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: .7rem; }
+    .role-set { display: flex; flex-direction: column; gap: .3rem; font-size: .85rem; color: var(--muted); }
+    .role-set span { font-weight: 600; color: var(--text); }
+    .role-set input { padding: .5rem .6rem; border: 1px solid var(--line); border-radius: 10px; font-size: 1rem; text-align: center; background: #f8fafc; }
+    @media (max-width: 560px) { .roles-grid { grid-template-columns: repeat(2, 1fr); } }
+    /* 参加者テーブル */
+    .table-scroll { overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; min-width: 580px; }
+    thead th {
+      font-size: .72rem; text-transform: uppercase; letter-spacing: .05em;
+      color: var(--muted); font-weight: 600; text-align: left; padding: 0 .5rem .5rem;
+    }
+    th.c, td.c { text-align: center; width: 1%; white-space: nowrap; }
+    tbody td { padding: .45rem .5rem; border-top: 1px solid var(--line); vertical-align: middle; }
+    input.name, input.paid, select.role {
+      width: 100%; padding: .5rem .6rem; border: 1px solid var(--line); border-radius: 10px;
+      font-size: .95rem; background: #f8fafc; color: var(--text); transition: border .15s, box-shadow .15s;
+    }
+    input.paid { text-align: right; }
+    input:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,70,229,.15); background: #fff; }
+    input[type="checkbox"], input[type="radio"] { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
+    .role-cell { display: flex; align-items: center; gap: .4rem; }
+    .ratio-badge {
+      font-size: .75rem; font-weight: 700; color: var(--accent); background: var(--chip);
+      padding: .15rem .45rem; border-radius: 999px; white-space: nowrap;
+    }
+    .rm {
+      border: none; background: transparent; color: var(--muted); font-size: 1rem; cursor: pointer;
+      width: 30px; height: 30px; border-radius: 8px; line-height: 1;
+    }
+    .rm:hover { background: #fee2e2; color: var(--danger); }
+    .add {
+      margin-top: .9rem; border: 1.5px dashed var(--accent); color: var(--accent); background: transparent;
+      padding: .55rem 1rem; border-radius: 12px; font-size: .9rem; cursor: pointer; font-weight: 600;
+    }
+    .add:hover { background: var(--chip); }
+    .totalbar {
+      display: flex; align-items: baseline; justify-content: flex-end; gap: .5rem;
+      margin: 1.1rem .25rem .25rem; font-size: .95rem; color: var(--muted);
+    }
+    .totalbar b { font-size: 1.5rem; color: var(--text); }
+    .calc {
+      width: 100%; margin-top: 1.1rem; padding: .85rem; border: none; border-radius: 14px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-d)); color: #fff;
+      font-size: 1.05rem; font-weight: 700; cursor: pointer; box-shadow: 0 8px 20px rgba(79,70,229,.35);
+    }
+    .calc:hover { filter: brightness(1.05); }
+    #result { margin-top: .5rem; }
+    #result h2 { font-size: 1.15rem; margin: 0 0 .75rem; }
+    #result h3 { font-size: .95rem; margin: 1.2rem 0 .55rem; color: var(--muted); }
+    table.breakdown {
+      border-collapse: collapse; width: 100%; font-size: .9rem; background: var(--card);
+      border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
+    }
+    table.breakdown th, table.breakdown td { padding: .5rem .7rem; border-top: 1px solid var(--line); text-align: right; }
+    table.breakdown th {
+      background: #f8fafc; color: var(--muted); font-weight: 600; font-size: .72rem;
+      text-transform: uppercase; letter-spacing: .04em; border-top: none;
+    }
+    table.breakdown td:first-child, table.breakdown th:first-child { text-align: left; }
+    .short { color: var(--danger); }
+    .over { color: var(--green); }
+    .transfer {
+      display: flex; align-items: center; gap: .6rem; padding: .8rem 1rem; margin-bottom: .6rem;
+      background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+      box-shadow: 0 4px 12px rgba(30,41,59,.05);
+    }
+    .transfer .from { font-weight: 700; }
+    .transfer .arrow { color: var(--accent); font-weight: 700; }
+    .transfer .amt { margin-left: auto; font-weight: 800; font-size: 1.1rem; }
+    .chip {
+      display: inline-block; margin-top: .4rem; padding: .5rem .9rem; border-radius: 999px;
+      background: #ecfdf5; color: var(--green); font-weight: 600; font-size: .9rem;
+    }
+    .muted { color: var(--muted); }
+    .error { color: var(--danger); font-weight: 600; }
+  </style>
+</head>
 <body>
-  <h1>ユーザー一覧</h1>
-  <ul>
-    <% users.forEach(user => { %>
-      <li><%= user.name %> (ID: <%= user.id %>)</li>
-    <% }) %>
-  </ul>
-  <hr>
-  <h2>ユーザー追加</h2>
-  <form action="/users" method="post">
-    <input type="text" name="name" placeholder="名前を入力" required>
-    <button type="submit">追加する</button>
-  </form>
+  <div class="wrap">
+    <header>
+      <h1>🍶 傾斜割り勘・清算アプリ</h1>
+      <p>役職の比率で傾斜をかけ（飲酒者はさらに ×1.2）、送金回数が最小になるように清算するのじゃ。</p>
+    </header>
+
+    <!-- 役職の比率設定 -->
+    <div class="card">
+      <div class="toolbar">
+        <strong>役職の比率</strong>
+        <span class="spacer"></span>
+        <span class="muted" style="font-size:.82rem">数値は自由に変えられるぞ（飲酒者はさらに ×1.2）</span>
+      </div>
+      <div class="roles-grid" id="rolesGrid">
+        <% roles.forEach((r) => { %>
+          <label class="role-set">
+            <span><%= r.name %></span>
+            <input type="number" class="ratio-input" data-role="<%= r.name %>" value="<%= r.ratio %>" min="0.1" step="0.5">
+          </label>
+        <% }) %>
+      </div>
+    </div>
+
+    <!-- 参加者 -->
+    <div class="card">
+      <div class="toolbar">
+        <strong>参加者</strong>
+        <span class="spacer"></span>
+        <label class="none"><input type="radio" name="organizer" value="none" checked> 幹事なし</label>
+      </div>
+
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th class="c">幹事</th>
+              <th>名前</th>
+              <th>役職</th>
+              <th class="c">飲む</th>
+              <th>立替額 (円)</th>
+              <th class="c"></th>
+            </tr>
+          </thead>
+          <tbody id="rows">
+            <% members.forEach((m) => { %>
+              <tr class="prow">
+                <td class="c"><input type="radio" name="organizer" class="organizer"></td>
+                <td><input class="name" list="memberNames" value="<%= m.name %>" placeholder="名前"></td>
+                <td>
+                  <div class="role-cell">
+                    <select class="role">
+                      <% roles.forEach((r) => { %>
+                        <option <%= r.id === m.roleId ? "selected" : "" %>><%= r.name %></option>
+                      <% }) %>
+                    </select>
+                    <span class="ratio-badge"></span>
+                  </div>
+                </td>
+                <td class="c"><input type="checkbox" class="drink" checked></td>
+                <td><input type="number" class="paid" value="0" min="0" step="100"></td>
+                <td class="c"><button type="button" class="rm" title="削除">✕</button></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+
+      <datalist id="memberNames">
+        <% members.forEach((m) => { %><option value="<%= m.name %>"></option><% }) %>
+      </datalist>
+
+      <button type="button" class="add" id="add">＋ 人を追加</button>
+
+      <div class="totalbar">合計金額（立替の合計）: <b id="total">0</b> 円</div>
+
+      <button type="button" class="calc" id="calc">計算する</button>
+    </div>
+
+    <div id="result"></div>
+  </div>
+
+  <script>
+    const ROLE_NAMES = <%- JSON.stringify(roles.map((r) => r.name)) %>;
+    const yen = (n) => n.toLocaleString("ja-JP");
+    const rows = document.getElementById("rows");
+
+    // 設定パネルから、その役職の現在の比率を取得
+    function ratioFor(name) {
+      const el = document.querySelector('.ratio-input[data-role="' + CSS.escape(name) + '"]');
+      return el ? Number(el.value) : NaN;
+    }
+
+    // 新しい行の役職オプション（名前だけ・一番下の役職を初期選択）
+    function roleOptions() {
+      return ROLE_NAMES.map((n, i) =>
+        "<option" + (i === ROLE_NAMES.length - 1 ? " selected" : "") + ">" + n + "</option>"
+      ).join("");
+    }
+
+    // 各行のバッジに、選んだ役職の現在比率を反映
+    function refreshBadges() {
+      rows.querySelectorAll(".prow").forEach((tr) => {
+        const name = tr.querySelector(".role").value;
+        const r = ratioFor(name);
+        tr.querySelector(".ratio-badge").textContent = "×" + (Number.isFinite(r) ? r : "?");
+      });
+    }
+
+    function addRow() {
+      const tr = document.createElement("tr");
+      tr.className = "prow";
+      tr.innerHTML =
+        '<td class="c"><input type="radio" name="organizer" class="organizer"></td>' +
+        '<td><input class="name" list="memberNames" placeholder="名前"></td>' +
+        '<td><div class="role-cell"><select class="role">' + roleOptions() +
+        '</select><span class="ratio-badge"></span></div></td>' +
+        '<td class="c"><input type="checkbox" class="drink" checked></td>' +
+        '<td><input type="number" class="paid" value="0" min="0" step="100"></td>' +
+        '<td class="c"><button type="button" class="rm" title="削除">✕</button></td>';
+      rows.appendChild(tr);
+      refreshBadges();
+      updateTotal();
+    }
+
+    function updateTotal() {
+      let sum = 0;
+      rows.querySelectorAll(".paid").forEach((el) => (sum += Number(el.value) || 0));
+      document.getElementById("total").textContent = yen(sum);
+    }
+
+    document.getElementById("add").addEventListener("click", addRow);
+
+    // 立替額 → 合計更新
+    rows.addEventListener("input", (e) => {
+      if (e.target.classList.contains("paid")) updateTotal();
+    });
+    // 役職の選択変更 → バッジ更新
+    rows.addEventListener("change", (e) => {
+      if (e.target.classList.contains("role")) refreshBadges();
+    });
+    // 比率設定の変更 → 全行のバッジ更新
+    document.getElementById("rolesGrid").addEventListener("input", refreshBadges);
+
+    // 行の削除（最低1人は残す）
+    rows.addEventListener("click", (e) => {
+      if (!e.target.classList.contains("rm")) return;
+      if (rows.querySelectorAll(".prow").length <= 1) return;
+      e.target.closest("tr").remove();
+      updateTotal();
+    });
+
+    document.getElementById("calc").addEventListener("click", async () => {
+      const result = document.getElementById("result");
+      const participants = [];
+      let badRatio = false;
+      rows.querySelectorAll(".prow").forEach((tr) => {
+        const roleName = tr.querySelector(".role").value;
+        const ratio = ratioFor(roleName);
+        if (!Number.isFinite(ratio) || ratio <= 0) badRatio = true;
+        participants.push({
+          name: (tr.querySelector(".name").value || "名無し").trim(),
+          ratio,
+          is_drinking: tr.querySelector(".drink").checked,
+          amount_paid: Number(tr.querySelector(".paid").value) || 0,
+          is_organizer: tr.querySelector(".organizer").checked,
+        });
+      });
+
+      if (badRatio) {
+        result.innerHTML = '<p class="error">役職の比率は 0 より大きい数を入れてくだされ。</p>';
+        return;
+      }
+      if (participants.every((p) => p.amount_paid === 0)) {
+        result.innerHTML = '<p class="error">立替額が全員0円じゃ。誰かの立替額を入れてくだされ。</p>';
+        return;
+      }
+
+      try {
+        const res = await fetch("/calculate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ participants }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          result.innerHTML = '<p class="error">エラー: ' + (data.error || "計算に失敗しました") + "</p>";
+          return;
+        }
+
+        const transferList = (arr) =>
+          arr.length === 0
+            ? '<p class="muted">送金は不要じゃ（ぴったり清算済み）。</p>'
+            : arr
+                .map(
+                  (t) =>
+                    '<div class="transfer"><span class="from">' + t.from + "</span>" +
+                    '<span class="arrow">→</span><span>' + t.to + "</span>" +
+                    '<span class="amt">¥' + yen(t.amount) + "</span></div>"
+                )
+                .join("");
+
+        let html = "<h2>清算結果（合計 ¥" + yen(data.total_amount) + "）</h2>";
+
+        // 本来の負担額（1円単位）
+        html += "<h3>本来の負担額（1円単位）</h3>";
+        html +=
+          '<table class="breakdown"><thead><tr>' +
+          "<th>名前</th><th>本来の負担額</th><th>立替額</th><th>過不足</th>" +
+          "</tr></thead><tbody>";
+        data.shares.forEach((s) => {
+          const diff = s.exact_share - s.amount_paid;
+          const diffTxt =
+            diff > 0
+              ? '<span class="short">不足 ¥' + yen(diff) + "</span>"
+              : diff < 0
+              ? '<span class="over">過払い ¥' + yen(-diff) + "</span>"
+              : "±0";
+          html +=
+            "<tr><td>" + s.name + "</td><td>¥" + yen(s.exact_share) +
+            "</td><td>¥" + yen(s.amount_paid) + "</td><td>" + diffTxt + "</td></tr>";
+        });
+        html += "</tbody></table>";
+
+        // 1円単位のやり取り
+        html += "<h3>やり取り（1円単位・きっちり）</h3>";
+        html += transferList(data.exact_transfers);
+
+        // 100円単位のやり取り
+        html += "<h3>やり取り（100円単位）</h3>";
+        html += transferList(data.transfers);
+        if (data.organizer_benefit > 0) {
+          html += '<span class="chip">幹事の取り分（端数）: ¥' + yen(data.organizer_benefit) + "</span>";
+        } else {
+          html += '<p class="muted" style="margin-top:.5rem">※ 幹事なし：端数は最も多く立て替えた人が受け取りました。</p>';
+        }
+
+        result.innerHTML = html;
+        result.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      } catch (e) {
+        result.innerHTML = '<p class="error">通信エラー: ' + e.message + "</p>";
+      }
+    });
+
+    refreshBadges();
+    updateTotal();
+  </script>
 </body>
 </html>

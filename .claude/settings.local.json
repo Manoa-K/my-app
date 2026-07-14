@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(wsl -e bash -lic \"cd /home/mano/webpro/my-app && \\(PORT=8888 ./node_modules/.bin/tsx index.ts > /tmp/srv.log 2>&1 &\\) ; sleep 6 ; echo '--- GET / \\(head\\) ---' ; curl -s http://localhost:8888/ | head -c 400 ; echo ; echo '--- has form rows? ---' ; curl -s http://localhost:8888/ | grep -c 'class=\\\\\"join\\\\\"' ; echo '--- srv errors ---' ; grep -i error /tmp/srv.log | head -3 ; pkill -f 'tsx index.ts'\" 2>&1)"
+    ]
+  }
+}
