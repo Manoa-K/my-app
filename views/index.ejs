@@ -33,12 +33,18 @@
       display: inline-flex; align-items: center; gap: .4rem; font-size: .9rem;
       color: var(--muted); cursor: pointer;
     }
-    /* 役職比率の設定 */
-    .roles-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: .7rem; }
-    .role-set { display: flex; flex-direction: column; gap: .3rem; font-size: .85rem; color: var(--muted); }
-    .role-set span { font-weight: 600; color: var(--text); }
-    .role-set input { padding: .5rem .6rem; border: 1px solid var(--line); border-radius: 10px; font-size: 1rem; text-align: center; background: #f8fafc; }
-    @media (max-width: 560px) { .roles-grid { grid-template-columns: repeat(2, 1fr); } }
+    /* 役職比率の設定（縦にコンパクト） */
+    .roles-list { display: flex; flex-direction: column; max-width: 240px; }
+    .role-set {
+      display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+      padding: .3rem 0; border-bottom: 1px dashed var(--line);
+    }
+    .role-set:last-child { border-bottom: none; }
+    .role-set span { font-weight: 600; color: var(--text); font-size: .9rem; }
+    .role-set input {
+      width: 68px; padding: .3rem .4rem; border: 1px solid var(--line); border-radius: 8px;
+      font-size: .95rem; text-align: center; background: #f8fafc;
+    }
     /* 参加者テーブル */
     .table-scroll { overflow-x: auto; }
     table { border-collapse: collapse; width: 100%; min-width: 580px; }
@@ -126,7 +132,7 @@
         <span class="spacer"></span>
         <span class="muted" style="font-size:.82rem">数値は自由に変えられるぞ（飲酒者はさらに ×1.2）</span>
       </div>
-      <div class="roles-grid" id="rolesGrid">
+      <div class="roles-list" id="rolesGrid">
         <% roles.forEach((r) => { %>
           <label class="role-set">
             <span><%= r.name %></span>
