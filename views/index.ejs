@@ -391,6 +391,7 @@
                 .join("");
 
         let html = "<h2>清算結果（合計 ¥" + yen(data.total_amount) + "）</h2>";
+        html += '<p class="muted" style="margin:-.3rem 0 .7rem">送金は幹事（不在なら最も多く立て替えた人）に集約しています。</p>';
 
         // 本来の負担額（1円単位）
         html += "<h3>本来の負担額（1円単位）</h3>";

@@ -63,32 +63,25 @@ function ceilToUnit(value: number): number {
 }
 
 /**
- * 送金マッチング（回数最小化・貪欲法）。
+ * 送金を「ハブ（幹事 or 最多立替者）」に集約する。
+ * 払う人はハブに送り、もらう人はハブから受け取る（各自の送金は1回）。
  * net: 正=不足(payer=from) / 負=過払い(receiver=to)
+ * ハブ自身の過不足は、全員の net 合計が 0 なので自動的に清算される。
  */
-function matchTransfers(entries: { name: string; net: number }[]): Transfer[] {
-  const debtors = entries
-    .filter((e) => e.net > 0)
-    .map((e) => ({ name: e.name, amount: e.net }))
-    .sort((a, b) => b.amount - a.amount);
-  const creditors = entries
-    .filter((e) => e.net < 0)
-    .map((e) => ({ name: e.name, amount: -e.net }))
-    .sort((a, b) => b.amount - a.amount);
-
+function hubTransfers(
+  entries: { name: string; net: number }[],
+  hubIdx: number
+): Transfer[] {
+  const hub = entries[hubIdx];
   const transfers: Transfer[] = [];
-  let i = 0;
-  let j = 0;
-  while (i < debtors.length && j < creditors.length) {
-    const pay = Math.min(debtors[i].amount, creditors[j].amount);
-    if (pay > 0) {
-      transfers.push({ from: debtors[i].name, to: creditors[j].name, amount: pay });
+  entries.forEach((e, i) => {
+    if (i === hubIdx || e.net === 0) return;
+    if (e.net > 0) {
+      transfers.push({ from: e.name, to: hub.name, amount: e.net });
+    } else {
+      transfers.push({ from: hub.name, to: e.name, amount: -e.net });
     }
-    debtors[i].amount -= pay;
-    creditors[j].amount -= pay;
-    if (debtors[i].amount === 0) i++;
-    if (creditors[j].amount === 0) j++;
-  }
+  });
   return transfers;
 }
 
@@ -135,28 +128,31 @@ export function calculateSettlement(input: SettlementInput): SettlementResult {
     amountPaid: p.amountPaid,
   }));
 
-  // 1円版の送金（端数なし）
-  const exact_transfers = matchTransfers(
-    shares.map((s) => ({ name: s.name, net: s.exactShare - s.amountPaid }))
-  );
-
-  // 100円版の送金（端数の受け取り先を決める）
-  const collected = roundedShares.reduce((a, b) => a + b, 0);
-  const residual = collected - totalAmount;
+  // 集約先（ハブ）＝幹事、いなければ最も多く立て替えた人（同額なら先頭）
   const organizerIdx = participants.findIndex((p) => p.isOrganizer);
-  let absorberIdx = organizerIdx;
-  if (absorberIdx < 0) {
-    absorberIdx = 0;
+  let hubIdx = organizerIdx;
+  if (hubIdx < 0) {
+    hubIdx = 0;
     shares.forEach((s, i) => {
-      if (s.amountPaid > shares[absorberIdx].amountPaid) absorberIdx = i;
+      if (s.amountPaid > shares[hubIdx].amountPaid) hubIdx = i;
     });
   }
+
+  // 1円版の送金（端数なし・ハブに集約）
+  const exact_transfers = hubTransfers(
+    shares.map((s) => ({ name: s.name, net: s.exactShare - s.amountPaid })),
+    hubIdx
+  );
+
+  // 100円版の送金（端数はハブが受け取り、ハブに集約）
+  const collected = roundedShares.reduce((a, b) => a + b, 0);
+  const residual = collected - totalAmount;
   const roundedNets = shares.map((s) => ({
     name: s.name,
     net: s.roundedShare - s.amountPaid,
   }));
-  roundedNets[absorberIdx].net -= residual;
-  const transfers = matchTransfers(roundedNets);
+  roundedNets[hubIdx].net -= residual;
+  const transfers = hubTransfers(roundedNets, hubIdx);
 
   return {
     total_amount: totalAmount,
