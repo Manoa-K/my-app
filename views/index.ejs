@@ -116,6 +116,22 @@
     }
     .muted { color: var(--muted); }
     .error { color: var(--danger); font-weight: 600; }
+    /* 記録 */
+    .save-row { display: flex; gap: .5rem; margin-top: .8rem; }
+    .save-row input { flex: 1; padding: .6rem .7rem; border: 1px solid var(--line); border-radius: 12px; background: #f8fafc; font-size: .95rem; }
+    .save { border: 1px solid var(--accent); background: var(--chip); color: var(--accent); font-weight: 700; border-radius: 12px; padding: .6rem 1rem; cursor: pointer; white-space: nowrap; }
+    .save:hover { background: #e0e7ff; }
+    .breakdown { margin: .1rem .2rem .8rem; font-size: .82rem; color: var(--muted); }
+    .event { border: 1px solid var(--line); border-radius: 14px; padding: .7rem .9rem; margin-bottom: .7rem; }
+    .event-head { display: flex; align-items: center; gap: .6rem; margin-bottom: .4rem; }
+    .event-head strong { font-size: .98rem; }
+    .event-head .muted { font-size: .85rem; }
+    .del { margin-left: auto; border: none; background: transparent; color: var(--muted); font-size: .8rem; cursor: pointer; }
+    .del:hover { color: var(--danger); text-decoration: underline; }
+    .debt { display: flex; align-items: center; gap: .55rem; padding: .35rem .2rem; font-size: .92rem; cursor: pointer; }
+    .debt .amt { margin-left: auto; font-weight: 700; }
+    .debt.done { color: var(--muted); text-decoration: line-through; }
+    .debt.done .amt { color: var(--muted); }
   </style>
 </head>
 <body>
@@ -195,9 +211,58 @@
       <div class="totalbar">合計金額（立替の合計）: <b id="total">0</b> 円</div>
 
       <button type="button" class="calc" id="calc">計算する</button>
+
+      <div class="save-row">
+        <input type="text" id="eventTitle" placeholder="会の名前（例：新年会・任意）">
+        <button type="button" class="save" id="save">この会を記録する</button>
+      </div>
     </div>
 
     <div id="result"></div>
+
+    <!-- 未清算まとめ（相殺後） -->
+    <div class="card">
+      <div class="toolbar"><strong>未清算まとめ（相殺後）</strong></div>
+      <% if (aggregated.length === 0) { %>
+        <p class="muted">未清算の残高はないぞ。</p>
+      <% } else { %>
+        <% aggregated.forEach((a) => { %>
+          <div class="transfer">
+            <span class="from"><%= a.from %></span><span class="arrow">→</span><span><%= a.to %></span>
+            <span class="amt">¥<%= a.amount.toLocaleString("ja-JP") %></span>
+          </div>
+          <p class="breakdown">内訳：<% a.breakdown.forEach((b, i) => { %><%= i > 0 ? "、" : "" %><%= b.sign > 0 ? "＋" : "−" %>¥<%= b.amount.toLocaleString("ja-JP") %>（<%= b.label %>）<% }) %></p>
+        <% }) %>
+      <% } %>
+    </div>
+
+    <!-- 飲み会の記録 -->
+    <div class="card">
+      <div class="toolbar"><strong>飲み会の記録</strong></div>
+      <% if (events.length === 0) { %>
+        <p class="muted">まだ記録がないぞ。計算して「この会を記録する」を押すのじゃ。</p>
+      <% } else { %>
+        <% events.forEach((e) => { %>
+          <div class="event">
+            <div class="event-head">
+              <strong><%= e.label %></strong>
+              <span class="muted">合計 ¥<%= e.totalAmount.toLocaleString("ja-JP") %></span>
+              <button type="button" class="del" data-event="<%= e.id %>">削除</button>
+            </div>
+            <% if (e.debts.length === 0) { %>
+              <p class="muted" style="font-size:.85rem">送金なし（全員ぴったり）</p>
+            <% } %>
+            <% e.debts.forEach((d) => { %>
+              <label class="debt <%= d.settled ? "done" : "" %>">
+                <input type="checkbox" class="settle" data-debt="<%= d.id %>" <%= d.settled ? "checked" : "" %>>
+                <span><%= d.fromName %> → <%= d.toName %></span>
+                <span class="amt">¥<%= d.amount.toLocaleString("ja-JP") %></span>
+              </label>
+            <% }) %>
+          </div>
+        <% }) %>
+      <% } %>
+    </div>
   </div>
 
   <script>
@@ -270,8 +335,7 @@
       updateTotal();
     });
 
-    document.getElementById("calc").addEventListener("click", async () => {
-      const result = document.getElementById("result");
+    function gatherParticipants() {
       const participants = [];
       let badRatio = false;
       rows.querySelectorAll(".prow").forEach((tr) => {
@@ -286,6 +350,12 @@
           is_organizer: tr.querySelector(".organizer").checked,
         });
       });
+      return { participants, badRatio };
+    }
+
+    document.getElementById("calc").addEventListener("click", async () => {
+      const result = document.getElementById("result");
+      const { participants, badRatio } = gatherParticipants();
 
       if (badRatio) {
         result.innerHTML = '<p class="error">役職の比率は 0 より大きい数を入れてくだされ。</p>';
@@ -360,6 +430,45 @@
       } catch (e) {
         result.innerHTML = '<p class="error">通信エラー: ' + e.message + "</p>";
       }
+    });
+
+    // この会を記録する
+    document.getElementById("save").addEventListener("click", async () => {
+      const { participants, badRatio } = gatherParticipants();
+      if (badRatio) { alert("役職の比率を確認してくだされ。"); return; }
+      if (participants.every((p) => p.amount_paid === 0)) {
+        alert("立替額を入れてから記録してくだされ。");
+        return;
+      }
+      const title = document.getElementById("eventTitle").value.trim();
+      const res = await fetch("/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, participants }),
+      });
+      if (res.ok) location.reload();
+      else alert("記録に失敗しました");
+    });
+
+    // 清算済みの切り替え
+    document.querySelectorAll(".settle").forEach((cb) => {
+      cb.addEventListener("change", async () => {
+        await fetch("/debts/" + cb.dataset.debt, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ settled: cb.checked }),
+        });
+        location.reload();
+      });
+    });
+
+    // 記録の削除
+    document.querySelectorAll(".del").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        if (!confirm("この記録を削除するかの？")) return;
+        await fetch("/events/" + btn.dataset.event, { method: "DELETE" });
+        location.reload();
+      });
     });
 
     refreshBadges();

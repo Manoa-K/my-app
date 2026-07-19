@@ -7,7 +7,7 @@ datasource db {
   provider = "postgresql"
 }
 
-// 役職（比率）: 4:3:2:1 のような傾斜の元になる
+// 役職（比率）: 4:3:2:1 のような傾斜の元。画面の初期比率に使う
 model Role {
   id      Int      @id @default(autoincrement())
   name    String   @unique
@@ -15,23 +15,35 @@ model Role {
   members Member[]
 }
 
-// メンバー名簿
+// メンバー名簿。名前の候補・初期の参加者行に使う
 model Member {
-  id           Int           @id @default(autoincrement())
-  name         String
-  roleId       Int
-  role         Role          @relation(fields: [roleId], references: [id])
-  eventMembers EventMember[]
+  id     Int    @id @default(autoincrement())
+  name   String
+  roleId Int
+  role   Role   @relation(fields: [roleId], references: [id])
 }
 
-// 今回の参加状況（どの飲み会で、誰が、飲むか、いくら立て替えたか）
-model EventMember {
-  id         Int     @id @default(autoincrement())
-  eventId    Int
-  memberId   Int
-  isDrinking Boolean @default(true)
-  amountPaid Int     @default(0)
-  member     Member  @relation(fields: [memberId], references: [id])
+// 飲み会の記録（1回分）
+model Event {
+  id           Int      @id @default(autoincrement())
+  title        String?
+  totalAmount  Int
+  // 参加者スナップショット [{ name, ratio, isDrinking, amountPaid, isOrganizer }]
+  participants Json
+  createdAt    DateTime @default(now())
+  debts        Debt[]
+}
+
+// 「fromName が toName に amount 円払う」1件。清算済みかを持つ
+model Debt {
+  id        Int      @id @default(autoincrement())
+  eventId   Int
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  fromName  String
+  toName    String
+  amount    Int
+  settled   Boolean  @default(false)
+  createdAt DateTime @default(now())
 
   @@index([eventId])
 }
